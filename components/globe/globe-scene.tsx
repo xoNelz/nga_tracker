@@ -34,6 +34,12 @@ function Controls({ spin, reducedMotion, command, onInteraction }: Pick<Props, '
     if (!command || !orbit) return;
     const camera = orbit.object;
     if (command.kind === 'reset') {
+      // Consume pending movement before restoring the view, within the same frame.
+      const damping = orbit.enableDamping;
+      orbit.autoRotate = false;
+      orbit.enableDamping = false;
+      orbit.update();
+      orbit.enableDamping = damping;
       camera.position.set(3.9, 1.5, -0.55); orbit.target.set(0,0,0);
     } else if (command.kind === 'in' || command.kind === 'out') {
       camera.position.multiplyScalar(command.kind === 'in' ? 0.88 : 1.12);
