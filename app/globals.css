@@ -52,7 +52,8 @@ h1 { font-size:20px; letter-spacing:3px; margin:0; }
   .brand-secondary { font-size:12px; letter-spacing:1px; }
   .edition { display:none; }
   .world-stage { padding:24px 16px 16px; }
-  .globe-viewport { height:clamp(300px,50svh,540px); margin-top:0; }
+  /* Keep the fixed camera's full globe visible in narrow portrait viewports. */
+  .globe-viewport { height:auto; aspect-ratio:1; max-height:clamp(300px,50svh,540px); margin-top:0; }
   .stage-note { font-size:12px; letter-spacing:0.5px; }
   .pixel-button { padding:0 12px; }
   .square-button { padding:0; }
