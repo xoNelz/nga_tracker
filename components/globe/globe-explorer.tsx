@@ -1,5 +1,6 @@
 'use client';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { Component, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import type { Command } from './globe-scene';
@@ -27,7 +28,7 @@ export default function GlobeExplorer() {
   const issue = (kind: NonNullable<Command>['kind']) => { setSpin(false); setCommand(previous => ({kind, id:(previous?.id??0)+1})); };
   const available = ready && !error;
   return <main className="explorer">
-    <header className="app-header"><a className="brand" href="/" aria-label="Naija Player Tracker home"><span className="flag" aria-hidden="true" /><span>NAIJA<span className="brand-secondary">PLAYER TRACKER</span></span></a><span className="edition">GLOBE PROTOTYPE / 01</span></header>
+    <header className="app-header"><Link className="brand" href="/" aria-label="Naija Player Tracker home"><span className="flag" aria-hidden="true" /><span>NAIJA<span className="brand-secondary">PLAYER TRACKER</span></span></Link><span className="edition">GLOBE PROTOTYPE / 01</span></header>
     <section className="world-stage" aria-label="Interactive world globe">
       <div className="world-context"><span className="context-index">01 /</span><h1>WORLD</h1></div>
       <div className="globe-viewport" aria-label="Drag to rotate. Scroll or pinch to zoom."><Boundary><Scene spin={spin && !reduced && !error} command={command} onReady={onReady} onError={onError} onInteraction={pause} /></Boundary>{error && <p className="globe-message" role="alert">{error}</p>}</div>

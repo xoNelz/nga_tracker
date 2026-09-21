@@ -28,11 +28,13 @@ function Earth({ onReady, onError }: Pick<Props, 'onReady' | 'onError'>) {
 
 function Controls({ spin, command, onInteraction }: Pick<Props, 'spin' | 'command' | 'onInteraction'>) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
-  const { camera, invalidate } = useThree();
+  const invalidate = useThree(state => state.invalidate);
   useEffect(() => {
-    if (!command) return;
+    const orbit = controls.current;
+    if (!command || !orbit) return;
+    const camera = orbit.object;
     if (command.kind === 'reset') {
-      camera.position.set(3.9, 1.5, -0.55); controls.current?.target.set(0,0,0);
+      camera.position.set(3.9, 1.5, -0.55); orbit.target.set(0,0,0);
     } else if (command.kind === 'in' || command.kind === 'out') {
       camera.position.multiplyScalar(command.kind === 'in' ? 0.88 : 1.12);
       camera.position.setLength(Math.max(2.5, Math.min(6.5, camera.position.length())));
@@ -41,8 +43,8 @@ function Controls({ spin, command, onInteraction }: Pick<Props, 'spin' | 'comman
       camera.position.x = x * Math.cos(a) - z * Math.sin(a);
       camera.position.z = x * Math.sin(a) + z * Math.cos(a);
     }
-    controls.current?.update(); invalidate();
-  }, [command, camera, invalidate]);
+    orbit.update(); invalidate();
+  }, [command, invalidate]);
   return <OrbitControls ref={controls} enablePan={false} enableDamping dampingFactor={0.09} minDistance={2.5} maxDistance={6.5} autoRotate={spin} autoRotateSpeed={0.45} minPolarAngle={0.2} maxPolarAngle={Math.PI-0.2} onStart={onInteraction} />;
 }
 
