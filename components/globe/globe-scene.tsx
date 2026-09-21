@@ -19,7 +19,11 @@ function Earth({ onReady, onError }: Pick<Props, 'onReady' | 'onError'>) {
       .catch(error => { if (!controller.signal.aborted) onError(error instanceof Error ? error.message : 'The globe could not load.'); });
     return () => { controller.abort(); created?.dispose(); };
   }, [onReady, onError]);
-  return <mesh><sphereGeometry args={[1.45, 96, 64]} /><meshStandardMaterial map={texture} color={texture ? '#ffffff' : '#2794d8'} roughness={1} /></mesh>;
+  return <mesh>
+    <sphereGeometry args={[1.45, 96, 64]} />
+    {/* Recreate the material when the async map arrives so its shader includes the texture. */}
+    <meshStandardMaterial key={texture?.uuid ?? 'loading'} map={texture} color={texture ? '#ffffff' : '#2794d8'} roughness={1} />
+  </mesh>;
 }
 
 function Controls({ spin, command, onInteraction }: Pick<Props, 'spin' | 'command' | 'onInteraction'>) {
