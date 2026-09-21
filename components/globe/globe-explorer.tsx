@@ -18,7 +18,13 @@ export default function GlobeExplorer() {
   const [command, setCommand] = useState<Command>(null);
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const apply = () => { setReduced(media.matches); setSpin(!media.matches); };
+    let firstRead = true;
+    const apply = () => {
+      setReduced(media.matches);
+      // Only the initial preference read may start spin; later changes leave it paused.
+      setSpin(firstRead && !media.matches);
+      firstRead = false;
+    };
     apply(); media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
   }, []);
@@ -31,7 +37,7 @@ export default function GlobeExplorer() {
     <header className="app-header"><Link className="brand" href="/" aria-label="Naija Player Tracker home"><span className="flag" aria-hidden="true" /><span>NAIJA<span className="brand-secondary">PLAYER TRACKER</span></span></Link><span className="edition">GLOBE PROTOTYPE / 01</span></header>
     <section className="world-stage" aria-label="Interactive world globe">
       <div className="world-context"><span className="context-index">01 /</span><h1>WORLD</h1></div>
-      <div className="globe-viewport" aria-label="Drag to rotate. Scroll or pinch to zoom."><Boundary><Scene spin={spin && !reduced && !error} command={command} onReady={onReady} onError={onError} onInteraction={pause} /></Boundary>{error && <p className="globe-message" role="alert">{error}</p>}</div>
+      <div className="globe-viewport" aria-label="Drag to rotate. Scroll or pinch to zoom."><Boundary><Scene reducedMotion={reduced} spin={spin && !reduced && !error} command={command} onReady={onReady} onError={onError} onInteraction={pause} /></Boundary>{error && <p className="globe-message" role="alert">{error}</p>}</div>
       <div className="stage-note"><span className="note-rule" />NIGERIAN FOOTBALLERS ABROAD</div>
       <div className="world-controls" aria-label="Globe controls">
         <div className="control-group"><Button variant="outline" className="pixel-button" disabled={!available||reduced} aria-pressed={spin&&!reduced} onClick={()=>setSpin(value=>!value)}>{spin&&!reduced?'Ⅱ PAUSE SPIN':'▷ RESUME SPIN'}</Button><Button variant="outline" className="pixel-button" disabled={!available} onClick={()=>issue('reset')}>RESET VIEW</Button></div>

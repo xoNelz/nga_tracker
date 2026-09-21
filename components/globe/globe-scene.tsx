@@ -6,7 +6,7 @@ import type { CanvasTexture } from 'three';
 import { makeWorldTexture, type WorldData } from '@/lib/globe/texture';
 
 export type Command = { kind: 'reset' | 'in' | 'out' | 'left' | 'right'; id: number } | null;
-type Props = { spin: boolean; command: Command; onInteraction: () => void; onReady: () => void; onError: (message: string) => void };
+type Props = { spin: boolean; reducedMotion: boolean; command: Command; onInteraction: () => void; onReady: () => void; onError: (message: string) => void };
 
 function Earth({ onReady, onError }: Pick<Props, 'onReady' | 'onError'>) {
   const [texture, setTexture] = useState<CanvasTexture | null>(null);
@@ -26,7 +26,7 @@ function Earth({ onReady, onError }: Pick<Props, 'onReady' | 'onError'>) {
   </mesh>;
 }
 
-function Controls({ spin, command, onInteraction }: Pick<Props, 'spin' | 'command' | 'onInteraction'>) {
+function Controls({ spin, reducedMotion, command, onInteraction }: Pick<Props, 'spin' | 'reducedMotion' | 'command' | 'onInteraction'>) {
   const controls = useRef<ComponentRef<typeof OrbitControls>>(null);
   const invalidate = useThree(state => state.invalidate);
   useEffect(() => {
@@ -45,13 +45,14 @@ function Controls({ spin, command, onInteraction }: Pick<Props, 'spin' | 'comman
     }
     orbit.update(); invalidate();
   }, [command, invalidate]);
-  return <OrbitControls ref={controls} enablePan={false} enableDamping dampingFactor={0.09} minDistance={2.5} maxDistance={6.5} autoRotate={spin} autoRotateSpeed={0.45} minPolarAngle={0.2} maxPolarAngle={Math.PI-0.2} onStart={onInteraction} />;
+  // Discard pending damping momentum when the preference changes, preserving the camera.
+  return <OrbitControls key={reducedMotion ? 'reduced' : 'normal'} ref={controls} enablePan={false} enableDamping={!reducedMotion} dampingFactor={0.09} minDistance={2.5} maxDistance={6.5} autoRotate={spin && !reducedMotion} autoRotateSpeed={0.45} minPolarAngle={0.2} maxPolarAngle={Math.PI-0.2} onStart={onInteraction} />;
 }
 
 export default function GlobeScene(props: Props) {
   return <Canvas camera={{ position: [3.9,1.5,-0.55], fov: 45 }} dpr={[1,1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }} fallback={<p className="globe-message">Your browser does not support the interactive globe.</p>}>
     <ambientLight intensity={1.7} /><directionalLight position={[5,5,3]} intensity={1.8} />
     <Earth onReady={props.onReady} onError={props.onError} />
-    <Controls spin={props.spin} command={props.command} onInteraction={props.onInteraction} />
+    <Controls spin={props.spin} reducedMotion={props.reducedMotion} command={props.command} onInteraction={props.onInteraction} />
   </Canvas>;
 }
