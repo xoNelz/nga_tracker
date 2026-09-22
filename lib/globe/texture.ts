@@ -1,29 +1,15 @@
 import { CanvasTexture, NearestFilter, SRGBColorSpace } from 'three';
-type Ring = number[][];
+import { WORLD_TEXTURE_WIDTH, WORLD_TEXTURE_HEIGHT, lonLatToTexturePixel, unwrapRing, type Ring } from './geography';
 type Geometry = { type: 'Polygon'; coordinates: Ring[] } | { type: 'MultiPolygon'; coordinates: Ring[][] };
 export type WorldData = { features: { properties: { name: string; iso3: string }; geometry: Geometry }[] };
 
-export function unwrapRing(ring: Ring): Ring {
-  const result: Ring = [];
-  for (const [longitude, latitude] of ring) {
-    let lon = longitude;
-    const previous = result.at(-1)?.[0];
-    if (previous !== undefined) {
-      while (lon - previous > 180) lon -= 360;
-      while (lon - previous < -180) lon += 360;
-    }
-    result.push([lon, latitude]);
-  }
-  return result;
-}
-
 export function makeWorldTexture(data: WorldData) {
   const canvas = document.createElement('canvas');
-  canvas.width = 512; canvas.height = 256;
+  canvas.width = WORLD_TEXTURE_WIDTH; canvas.height = WORLD_TEXTURE_HEIGHT;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not create the world texture.');
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = '#2794d8'; ctx.fillRect(0, 0, 512, 256);
+  ctx.fillStyle = '#2794d8'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   for (const feature of data.features) {
     const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
     for (const polygon of polygons) {
@@ -37,8 +23,7 @@ export function makeWorldTexture(data: WorldData) {
         ctx.beginPath();
         for (const ring of rings) {
           ring.forEach(([lon, lat], index) => {
-            const x = Math.round((lon + shift + 180) / 360 * 512);
-            const y = Math.round((90 - lat) / 180 * 256);
+            const { x, y } = lonLatToTexturePixel(lon + shift, lat);
             if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
           });
           ctx.closePath();
@@ -51,7 +36,7 @@ export function makeWorldTexture(data: WorldData) {
     }
   }
   // Remove canvas edge antialiasing so every texel uses a crisp palette entry.
-  const pixels = ctx.getImageData(0, 0, 512, 256);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const palette = [[39,148,216],[0,135,81],[215,232,220],[210,179,111],[135,198,92]];
   for (let i = 0; i < pixels.data.length; i += 4) {
     let best = palette[0], distance = Infinity;
