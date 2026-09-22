@@ -37,6 +37,10 @@ h1 { font-size:20px; letter-spacing:3px; margin:0; }
 .globe-message { position:absolute; top:45%; left:50%; transform:translate(-50%,-50%); text-align:center; font-size:16px; width:min(90%,440px); color:#a9b4c9; }
 .stage-note { display:flex; align-items:center; justify-content:center; gap:12px; font:14px monospace; letter-spacing:1.5px; color:#a9b4c9; margin:8px 0 24px; }
 .note-rule { width:24px; height:3px; background:#23b26d; }
+.region-readout { display:flex; flex-wrap:wrap; justify-content:center; gap:4px 24px; text-align:center; color:#a9b4c9; font-size:14px; min-height:28px; }
+.region-readout p { margin:0; overflow-wrap:anywhere; }
+.region-readout span { color:#f3f1e8; }
+.selection-hint { text-align:center; color:#a9b4c9; font-size:12px; margin:0 0 10px; }
 .world-controls { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; }
 .control-group { display:flex; gap:8px; }
 .pixel-button { font-family:monospace; font-size:14px; min-height:46px; border-radius:0; border:1px solid #43516a; background:#101a34; color:#f3f1e8; padding:0 18px; box-shadow:3px 3px 0 #050c1d; }
