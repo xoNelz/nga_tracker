@@ -73,3 +73,9 @@ h1 { font-size:20px; letter-spacing:3px; margin:0; }
 @media(max-width:600px) {
   .region-readout { flex-direction:column; gap:4px; }
 }
+
+.destination-chooser { max-width:440px; margin:8px auto 20px; color:#a9b4c9; font-size:14px; text-align:center; }
+.destination-chooser label { display:block; margin-bottom:8px; color:#f3f1e8; }
+.destination-chooser select { width:100%; min-height:46px; padding:8px 12px; border:1px solid #43516a; border-radius:0; background:#101a34; color:#f3f1e8; font-size:16px; }
+.destination-chooser p { margin:8px 0; line-height:1.5; }
+.destination-chooser strong { color:#f3f1e8; font-weight:normal; }
