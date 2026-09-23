@@ -1,6 +1,6 @@
 import { CanvasTexture, NearestFilter, SRGBColorSpace } from 'three';
 import { WORLD_TEXTURE_WIDTH, WORLD_TEXTURE_HEIGHT, lonLatToTexturePixel, unwrapRing, type Ring } from './geography';
-import { assignRegionCoverage, type RegionLookup } from './selection';
+import { assignRegionCoverage, regionOutlinePixels, type RegionLookup } from './selection';
 type Geometry = { type: 'Polygon'; coordinates: Ring[] } | { type: 'MultiPolygon'; coordinates: Ring[][] };
 export type WorldData = { features: { properties: { name: string; iso3: string }; geometry: Geometry }[] };
 
@@ -67,5 +67,15 @@ export function makeWorldTexture(data: WorldData) {
   texture.colorSpace = SRGBColorSpace;
   texture.minFilter = NearestFilter; texture.magFilter = NearestFilter;
   texture.generateMipmaps = false;
-  return { texture, lookup };
+  // Keep the original palette so changing/clearing selection never accumulates marks.
+  const basePixels = new Uint8ClampedArray(pixels.data);
+  const setSelection = (iso3: string | null) => {
+    pixels.data.set(basePixels);
+    for (const index of regionOutlinePixels(lookup, iso3)) {
+      pixels.data.set([243, 241, 232, 255], index * 4);
+    }
+    ctx.putImageData(pixels, 0, 0);
+    texture.needsUpdate = true;
+  };
+  return { texture, lookup, setSelection };
 }

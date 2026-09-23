@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assignRegionCoverage, createTapGuard, regionAtUv, type RegionLookup } from './selection.js';
+import { regionOutlinePixels, assignRegionCoverage, createTapGuard, regionAtUv, type RegionLookup } from './selection.js';
 
 const lookup: RegionLookup = {
   width: 2, height: 2, ids: new Uint16Array([1, 2, 0, 1]),
@@ -62,4 +62,18 @@ test('cancel, wheel rejection, window blur, and non-primary buttons cannot selec
   guard.down(2, 0, 0); guard.reject(); assert.equal(guard.up(2, 0, 0), false);
   guard.down(3, 0, 0); guard.clear(); assert.equal(guard.up(3, 0, 0), false);
   guard.down(4, 0, 0, false); assert.equal(guard.up(4, 0, 0), false);
+});
+
+test('outline preserves the interior and never paints neighbouring land or ocean', () => {
+  const map: RegionLookup = { width: 5, height: 5, regions: lookup.regions,
+    ids: new Uint16Array([0,0,0,0,0, 2,1,1,1,0, 2,1,1,1,0, 0,1,1,1,0, 0,0,0,0,0]) };
+  assert.deepEqual(regionOutlinePixels(map, 'WST'), [6,7,8,11,13,16,17,18]);
+  assert.deepEqual(regionOutlinePixels(map, null), []);
+  assert.deepEqual(regionOutlinePixels(map, 'unknown'), []);
+});
+
+test('outline wraps the antimeridian and does not draw artificial polar edges', () => {
+  const map: RegionLookup = { width: 5, height: 3, regions: lookup.regions,
+    ids: new Uint16Array([1,1,0,1,1, 1,1,0,1,1, 1,1,0,1,1]) };
+  assert.deepEqual(regionOutlinePixels(map, 'WST'), [1,3,6,8,11,13]);
 });

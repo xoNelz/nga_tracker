@@ -54,3 +54,20 @@ export function createTapGuard(tolerance = 6) {
     clear() { rejected = true; pointers.clear(); },
   };
 }
+
+/** Inner pixel boundary, wrapping longitude so the map seam is not an outline. */
+export function regionOutlinePixels(lookup: RegionLookup, iso3: string | null): number[] {
+  const id = iso3 ? lookup.regions.findIndex(region => region.iso3 === iso3) + 1 : 0;
+  if (!id) return [];
+  const { width, height, ids } = lookup;
+  const outline: number[] = [];
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+    const index = y * width + x;
+    if (ids[index] !== id) continue;
+    if (ids[y * width + (x + width - 1) % width] !== id ||
+        ids[y * width + (x + 1) % width] !== id ||
+        (y > 0 && ids[index - width] !== id) ||
+        (y < height - 1 && ids[index + width] !== id)) outline.push(index);
+  }
+  return outline;
+}

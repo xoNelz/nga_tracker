@@ -7,9 +7,9 @@ import { makeWorldTexture, type WorldData } from '@/lib/globe/texture';
 import { createTapGuard, regionAtUv, type MapRegion } from '@/lib/globe/selection';
 
 export type Command = { kind: 'reset' | 'in' | 'out' | 'left' | 'right'; id: number } | null;
-type Props = { spin: boolean; reducedMotion: boolean; command: Command; onInteraction: () => void; onReady: () => void; onError: (message: string) => void; onHover: (region: MapRegion | null) => void; onSelect: (region: MapRegion | null) => void };
+type Props = { selected: MapRegion | null; spin: boolean; reducedMotion: boolean; command: Command; onInteraction: () => void; onReady: () => void; onError: (message: string) => void; onHover: (region: MapRegion | null) => void; onSelect: (region: MapRegion | null) => void };
 
-function Earth({ onReady, onError, onHover, onSelect }: Pick<Props, 'onReady' | 'onError' | 'onHover' | 'onSelect'>) {
+function Earth({ selected, onReady, onError, onHover, onSelect }: Pick<Props, 'selected' | 'onReady' | 'onError' | 'onHover' | 'onSelect'>) {
   const [world, setWorld] = useState<ReturnType<typeof makeWorldTexture> | null>(null);
   const mesh = useRef<Mesh>(null);
   const { camera, gl } = useThree();
@@ -95,6 +95,7 @@ function Earth({ onReady, onError, onHover, onSelect }: Pick<Props, 'onReady' | 
       onHover(null);
     };
   }, [world, camera, gl, onHover, onSelect]);
+  useEffect(() => { world?.setSelection(selected?.iso3 ?? null); }, [world, selected]);
   const texture = world?.texture;
   return <mesh ref={mesh}>
     <sphereGeometry args={[1.45, 96, 64]} />
@@ -135,7 +136,7 @@ function Controls({ spin, reducedMotion, command, onInteraction }: Pick<Props, '
 export default function GlobeScene(props: Props) {
   return <Canvas camera={{ position: [3.9,1.5,-0.55], fov: 45 }} dpr={[1,1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }} fallback={<p className="globe-message">Your browser does not support the interactive globe.</p>}>
     <ambientLight intensity={1.7} /><directionalLight position={[5,5,3]} intensity={1.8} />
-    <Earth onReady={props.onReady} onError={props.onError} onHover={props.onHover} onSelect={props.onSelect} />
+    <Earth selected={props.selected} onReady={props.onReady} onError={props.onError} onHover={props.onHover} onSelect={props.onSelect} />
     <Controls spin={props.spin} reducedMotion={props.reducedMotion} command={props.command} onInteraction={props.onInteraction} />
   </Canvas>;
 }

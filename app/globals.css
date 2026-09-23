@@ -65,3 +65,11 @@ h1 { font-size:20px; letter-spacing:3px; margin:0; }
   .app-footer { flex-direction:column; text-align:center; padding:16px; gap:4px; }
 }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+
+/* Isolate the canvas from the readout, including Safari's auto-height sizing. */
+.globe-viewport { overflow:hidden; isolation:isolate; }
+.globe-viewport > div { position:absolute!important; inset:0; }
+.region-readout { position:relative; padding:12px 0 8px; line-height:1.5; }
+@media(max-width:600px) {
+  .region-readout { flex-direction:column; gap:4px; }
+}

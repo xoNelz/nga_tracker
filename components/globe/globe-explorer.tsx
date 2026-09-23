@@ -44,7 +44,7 @@ export default function GlobeExplorer() {
     <header className="app-header"><Link className="brand" href="/" aria-label="Naija Player Tracker home"><span className="flag" aria-hidden="true" /><span>NAIJA<span className="brand-secondary">PLAYER TRACKER</span></span></Link><span className="edition">GLOBE PROTOTYPE / 01</span></header>
     <section className="world-stage" aria-label="Interactive world globe">
       <div className="world-context"><span className="context-index">01 /</span><h1>WORLD</h1></div>
-      <div className="globe-viewport" aria-label="Drag to rotate. Scroll or pinch to zoom. Click or tap land to select a map region."><Boundary><Scene reducedMotion={reduced} spin={spin && !reduced && !error} command={command} onReady={onReady} onError={onError} onInteraction={pause} onHover={setHovered} onSelect={setSelected} /></Boundary>{error && <p className="globe-message" role="alert">{error}</p>}</div>
+      <div className="globe-viewport" aria-label="Drag to rotate. Scroll or pinch to zoom. Click or tap land to select a map region."><Boundary><Scene selected={selected} reducedMotion={reduced} spin={spin && !reduced && !error} command={command} onReady={onReady} onError={onError} onInteraction={pause} onHover={setHovered} onSelect={setSelected} /></Boundary>{error && <p className="globe-message" role="alert">{error}</p>}</div>
       <div className="region-readout" aria-label="Map region selection">
         <p>Hovering: <span>{hovered?.name ?? '—'}</span></p>
         <p role="status" aria-live="polite" aria-atomic="true">Selected: <span>{selected?.name ?? 'None'}</span></p>
