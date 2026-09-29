@@ -135,13 +135,26 @@ M1 — Globe prototype: application structure, dominant smooth sphere with provi
 
 M2 — Geographic selection: prove texture/selection alignment and simple league destinations, including UK constituent countries. Validate hover/tap and close zoom before art polish.
 
-M3 — Hierarchy: continent and league-country transitions, breadcrumbs, HTML navigation and Nigeria HOME treatment.
+M3 — Hierarchy: continent and league-country transitions with granular zoom tiers (region-scoped 50m/10m boundary loads), an HTML label overlay layer (countries plus major cities for orientation), breadcrumbs, HTML navigation and Nigeria HOME treatment.
 
 M4 — Club data: local sample dataset, markers, overlap handling, gender filtering and club panels.
 
 M5 — Players: sprite layers/consistent custom assets, front-of-kit numbers and player profiles.
 
 M6 — Release polish: mobile bottom sheets, accessibility checks, performance measurements, geographic edge cases, error/fallback states and restrained clouds/motion.
+
+## 16. Amendment — granular continent zoom (2026-09-28)
+
+Product decision for the M3 continent view: zooming into a continent goes Google-Maps-granular — major countries, major cities, readable labels — while staying on the 3D globe in pixel-art format. There is no transition to a flat map at any zoom level.
+
+- The globe is the product at every zoom. Close zoom makes the sphere's curvature subtle; no second renderer and no globe-to-flat handoff is built.
+- Zoom tiers with lazy-loaded geography: the world view keeps 110m boundaries; entering a continent loads 50m boundaries for that region; country focus loads 10m. Loads are region-scoped so the initial payload stays light. Resolution upgrades serve selection alignment first, visual fidelity second.
+- Labels are HTML overlays, never baked into the texture. Each label's lat/lon is projected to screen coordinates on camera change; text stays crisp at any zoom. Pixel/display font for identity and short headings; clean sans-serif for metadata. Country labels in small caps; major cities get a pixel dot plus name.
+- City data comes from Natural Earth populated places — the same source family as the boundaries, so no new licensing questions.
+- Two visual layers, kept distinct: the orientation layer (major countries, major cities, labels — everywhere, for map reading) and the product layer (club markers, counts, destination emphasis — only in tracked league destinations). Orientation never outshines the product layer.
+- The pixel texture stays deliberately chunky. Low-fi geography against sharp labels and markers is the retro-game contrast; do not smooth the texture into realism as zoom deepens.
+
+This amends section 3: the "do not switch to a flat country map" rule is now a confirmed product decision, not a provisional one.
 
 ## Appendix A — Coding-agent master prompt
 
