@@ -6,6 +6,9 @@ import {
   regionFileForTier,
   labelsForTier,
   continentForIso3,
+  CONTINENT_TIER_DISTANCE,
+  REST_CAMERA_DISTANCE,
+  REST_CAMERA_DIRECTION,
   type CountryIndex,
 } from './zoomTiers.js';
 
@@ -37,4 +40,15 @@ test('iso3 resolves to its continent through the generated index', () => {
   assert.equal(continentForIso3(index, 'GBR'), 'europe');
   assert.equal(continentForIso3(index, null), null);
   assert.equal(continentForIso3(index, 'XXX'), null);
+});
+
+test('the resting camera sits in the world tier, so labels only appear on zoom', () => {
+  const dirLength = Math.hypot(...REST_CAMERA_DIRECTION);
+  assert.ok(Math.abs(dirLength - 1) < 1e-3, `rest direction must be a unit vector (got ${dirLength})`);
+  assert.ok(
+    REST_CAMERA_DISTANCE >= CONTINENT_TIER_DISTANCE,
+    'rest distance must clear the world-tier threshold',
+  );
+  assert.equal(tierForDistance(REST_CAMERA_DISTANCE), 'world');
+  assert.deepEqual(labelsForTier('world'), { countries: false, cities: false });
 });

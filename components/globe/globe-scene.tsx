@@ -12,6 +12,8 @@ import {
   labelsForTier,
   continentForIso3,
   COUNTRY_TIER_DISTANCE,
+  REST_CAMERA_DISTANCE,
+  REST_CAMERA_DIRECTION,
   type CountryIndex,
   type LabelVisibility,
   type ZoomTier,
@@ -21,6 +23,17 @@ import { destinationsForMapRegion } from '@/lib/football/destinations';
 
 export type Command = { kind: 'reset' | 'in' | 'out' | 'left' | 'right'; id: number } | null;
 type Props = { selected: MapRegion | null; spin: boolean; reducedMotion: boolean; command: Command; onInteraction: () => void; onReady: () => void; onError: (message: string) => void; onHover: (region: MapRegion | null) => void; onSelect: (region: MapRegion | null) => void };
+
+/**
+ * Resting camera position, derived from the shared rest distance so the globe
+ * always loads in the world tier (no labels); zooming in brings up the
+ * continent/country tiers.
+ */
+const REST_CAMERA_POSITION: [number, number, number] = [
+  REST_CAMERA_DIRECTION[0] * REST_CAMERA_DISTANCE,
+  REST_CAMERA_DIRECTION[1] * REST_CAMERA_DISTANCE,
+  REST_CAMERA_DIRECTION[2] * REST_CAMERA_DISTANCE,
+];
 
 /** Region files carry a precomputed label anchor per feature (spec section 16). */
 export interface RegionFeature {
@@ -283,7 +296,7 @@ function Controls({ spin, reducedMotion, command, onInteraction }: Pick<Props, '
       orbit.enableDamping = false;
       orbit.update();
       orbit.enableDamping = damping;
-      camera.position.set(3.9, 1.5, -0.55); orbit.target.set(0,0,0);
+      camera.position.set(...REST_CAMERA_POSITION); orbit.target.set(0,0,0);
     } else if (command.kind === 'in' || command.kind === 'out') {
       camera.position.multiplyScalar(command.kind === 'in' ? 0.88 : 1.12);
       camera.position.setLength(Math.max(2.5, Math.min(6.5, camera.position.length())));
@@ -305,6 +318,12 @@ function Controls({ spin, reducedMotion, command, onInteraction }: Pick<Props, '
  * collide, keeping tiny neighbours readable.
  */
 const LABEL_MIN_GAP = 26;
+/**
+ * Rough per-character advance for the 11px label font. The collision test
+ * estimates each label's width from its text so neighbouring labels' text
+ * can't touch, instead of comparing anchor points alone.
+ */
+const LABEL_CHAR_PX = 3.4;
 
 function LabelLayer({ labels, visible, probeRef }: { labels: MapLabel[]; visible: LabelVisibility; probeRef: RefObject<CameraShot | null> }) {
   const nodes = useRef(new Map<string, HTMLDivElement>());
@@ -318,7 +337,7 @@ function LabelLayer({ labels, visible, probeRef }: { labels: MapLabel[]; visible
       const shot = probeRef.current;
       if (!shot) return;
       const { camera, size } = shot;
-      const placed: { x: number; y: number }[] = [];
+      const placed: { x: number; y: number; halfW: number }[] = [];
       for (const label of labels) {
         const node = nodes.current.get(label.id);
         if (!node) continue;
@@ -328,14 +347,24 @@ function LabelLayer({ labels, visible, probeRef }: { labels: MapLabel[]; visible
           continue;
         }
         const projected = projectLabel(label.latitude, label.longitude, camera, size.width, size.height);
-        const collides = placed.some(done => Math.abs(done.x - projected.x) < LABEL_MIN_GAP && Math.abs(done.y - projected.y) < LABEL_MIN_GAP);
-        if (!projected.visible || collides) {
+        if (!projected.visible) {
           node.style.display = 'none';
           continue;
         }
-        placed.push({ x: projected.x, y: projected.y });
+        // City labels carry a leading dot, so they get a little extra room.
+        const halfW = label.text.length * LABEL_CHAR_PX + (label.kind === 'city' ? 10 : 4);
+        // Keep the label fully inside the viewport instead of clipping at the edge.
+        const cx = Math.min(Math.max(projected.x, halfW), size.width - halfW);
+        const collides = placed.some(done =>
+          Math.abs(done.x - cx) < done.halfW + halfW + 4 &&
+          Math.abs(done.y - projected.y) < LABEL_MIN_GAP);
+        if (collides) {
+          node.style.display = 'none';
+          continue;
+        }
+        placed.push({ x: cx, y: projected.y, halfW });
         node.style.display = label.kind === 'city' ? 'flex' : 'block';
-        node.style.transform = `translate(-50%,-135%) translate(${projected.x.toFixed(1)}px, ${projected.y.toFixed(1)}px)`;
+        node.style.transform = `translate(-50%,-135%) translate(${cx.toFixed(1)}px, ${projected.y.toFixed(1)}px)`;
       }
     };
     raf = requestAnimationFrame(tick);
@@ -423,7 +452,7 @@ export default function GlobeScene(props: Props) {
   const visibility = labelsForTier(tier);
 
   return <div className="globe-stage">
-    <Canvas camera={{ position: [3.9,1.5,-0.55], fov: 45 }} dpr={[1,1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }} fallback={<p className="globe-message">Your browser does not support the interactive globe.</p>}>
+    <Canvas camera={{ position: REST_CAMERA_POSITION, fov: 45 }} dpr={[1,1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }} fallback={<p className="globe-message">Your browser does not support the interactive globe.</p>}>
       <ambientLight intensity={1.7} /><directionalLight position={[5,5,3]} intensity={1.8} />
       <Earth selected={props.selected} tier={tier} countryIndex={countryIndex} reducedMotion={props.reducedMotion} onGeoData={onGeoData} onReady={props.onReady} onError={props.onError} onHover={props.onHover} onSelect={props.onSelect} onInteraction={props.onInteraction} />
       <TierTracker onTier={onTier} />

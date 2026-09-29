@@ -4,9 +4,18 @@
 
 export type ZoomTier = 'world' | 'continent' | 'country';
 
-// OrbitControls clamps camera distance to [2.5, 6.5]; the default view sits at ~4.2.
+// OrbitControls clamps camera distance to [2.5, 6.5].
 export const CONTINENT_TIER_DISTANCE = 4.4;
 export const COUNTRY_TIER_DISTANCE = 3.1;
+
+/**
+ * Resting camera distance. The globe loads here, in the world tier (no
+ * labels); zooming in is what brings up the continent/country tiers.
+ * Must stay >= CONTINENT_TIER_DISTANCE.
+ */
+export const REST_CAMERA_DISTANCE = 5.2;
+/** Unit vector of the resting camera direction (faces Africa/Europe). */
+export const REST_CAMERA_DIRECTION: [number, number, number] = [0.9254, 0.3559, -0.1305];
 
 export function tierForDistance(distance: number): ZoomTier {
   if (distance >= CONTINENT_TIER_DISTANCE) return 'world';
