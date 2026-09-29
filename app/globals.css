@@ -34,6 +34,15 @@ button,a { -webkit-tap-highlight-color:transparent; }
 .context-index { color:#23b26d; font-size:16px; }
 h1 { font-size:20px; letter-spacing:3px; margin:0; }
 .globe-viewport { height:clamp(330px,62svh,720px); position:relative; width:100%; margin-top:-20px; touch-action:none; }
+.globe-stage { position:absolute; inset:0; }
+/* Spec section 16: HTML label overlay. Crisp text the pixel texture cannot carry;
+   countries label the continent tier, major cities join at the country tier. */
+.globe-labels { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:2; }
+.globe-label { position:absolute; top:0; left:0; display:none; font-family:monospace; white-space:nowrap; pointer-events:none; will-change:transform; }
+.globe-label--country { font-size:10px; font-weight:700; letter-spacing:2px; text-transform:uppercase; color:#cdd6e4; text-shadow:0 1px 0 #0a1a2f, 0 0 5px rgba(10,26,47,.95); }
+.globe-label--country.is-destination { color:#ffd166; }
+.globe-label--city { align-items:center; font-size:9px; letter-spacing:1px; color:#8fa0b8; text-shadow:0 1px 0 #0a1a2f, 0 0 4px rgba(10,26,47,.95); }
+.globe-label-dot { width:5px; height:5px; margin-right:5px; background:#8fa0b8; box-shadow:0 0 3px rgba(10,26,47,.9); }
 .globe-message { position:absolute; top:45%; left:50%; transform:translate(-50%,-50%); text-align:center; font-size:16px; width:min(90%,440px); color:#a9b4c9; }
 .stage-note { display:flex; align-items:center; justify-content:center; gap:12px; font:14px monospace; letter-spacing:1.5px; color:#a9b4c9; margin:8px 0 24px; }
 .note-rule { width:24px; height:3px; background:#23b26d; }

@@ -77,7 +77,7 @@ export default function GlobeExplorer() {
         <div className="control-group"><Button variant="outline" className="pixel-button" disabled={!available||reduced} aria-pressed={spin&&!reduced} onClick={()=>setSpin(value=>!value)}>{spin&&!reduced?'Ⅱ PAUSE SPIN':'▷ RESUME SPIN'}</Button><Button variant="outline" className="pixel-button" disabled={!available} onClick={()=>issue('reset')}>RESET VIEW</Button></div>
         <div className="control-group">{([{kind:'left',label:'Rotate left',symbol:'←'},{kind:'right',label:'Rotate right',symbol:'→'},{kind:'out',label:'Zoom out',symbol:'−'},{kind:'in',label:'Zoom in',symbol:'+'}] as const).map(c=><Button key={c.kind} variant="outline" className="pixel-button square-button" disabled={!available} aria-label={c.label} onClick={()=>issue(c.kind)}>{c.symbol}</Button>)}</div>
       </div>
-      <p className="interaction-hint">DRAG TO ROTATE <span aria-hidden="true">/</span> SCROLL OR PINCH TO ZOOM</p>
+      <p className="interaction-hint">DRAG TO ROTATE <span aria-hidden="true">/</span> SCROLL OR PINCH TO ZOOM <span aria-hidden="true">/</span> DOUBLE-CLICK TO DIVE IN</p>
       <p className="selection-hint">CLICK OR TAP LAND TO SELECT A MAP REGION</p>
       <p className="sr-only" role="status">{error??(!ready?'Loading globe.':reduced?'Automatic spin disabled for reduced motion.':spin?'Globe loaded. Automatic spin running.':'Automatic spin paused.')}</p>
     </section>
