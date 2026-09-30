@@ -96,7 +96,7 @@ function useContinentId(
   return continentId;
 }
 
-type EarthProps = Pick<Props, 'selected' | 'onReady' | 'onError' | 'onHover' | 'onSelect' | 'onInteraction' | 'reducedMotion'> & {
+type EarthProps = Pick<Props, 'selected' | 'onReady' | 'onError' | 'onHover' | 'onSelect' | 'onInteraction' | 'reducedMotion' | 'command'> & {
   tier: ZoomTier;
   countryIndex: CountryIndex;
   onGeoData: (data: RegionData, continentId: string | null) => void;
@@ -106,7 +106,7 @@ type EarthProps = Pick<Props, 'selected' | 'onReady' | 'onError' | 'onHover' | '
 const FACE_POLL_MS = 200;
 const FACE_STABLE_MS = 500;
 
-function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady, onError, onHover, onSelect, onInteraction }: EarthProps) {
+function Earth({ selected, tier, countryIndex, reducedMotion, command, onGeoData, onReady, onError, onHover, onSelect, onInteraction }: EarthProps) {
   const [world, setWorld] = useState<ReturnType<typeof makeWorldTexture> | null>(null);
   const mesh = useRef<Mesh>(null);
   const { camera, gl } = useThree();
@@ -115,6 +115,11 @@ function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady
   const readyRef = useRef(false);
   const zoomTarget = useRef<Vector3 | null>(null);
   const refreshHover = useRef<() => void>(() => {});
+
+  // Any explicit camera command takes priority over an in-flight double-click dive.
+  useEffect(() => {
+    if (command) zoomTarget.current = null;
+  }, [command]);
 
   // The continent under the camera, for when nothing is selected.
   const facingContinent = useCallback((): string | null => {
@@ -274,6 +279,8 @@ function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady
       publishHover(hoverPosition && !guard.active ? pick(hoverPosition.x, hoverPosition.y)?.region ?? null : null);
     };
     const down = (event: PointerEvent) => {
+      // Direct manipulation always takes control from an automatic dive.
+      zoomTarget.current = null;
       guard.down(event.pointerId, event.clientX, event.clientY, event.button === 0);
       // Presses beginning outside the sphere must not become selections on release.
       if (!pick(event.clientX, event.clientY)) guard.reject();
@@ -295,7 +302,10 @@ function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady
     const cancel = (event: PointerEvent) => { guard.cancel(event.pointerId); updateHover(); };
     const leave = () => { hoverPosition = null; publishHover(null); };
     const blur = () => { guard.clear(); leave(); };
-    const wheel = () => guard.reject();
+    const wheel = () => {
+      zoomTarget.current = null;
+      guard.reject();
+    };
     // Double-click dives toward the tapped point, into the country tier.
     const dive = (event: MouseEvent) => {
       if (!mesh.current) return;
@@ -515,7 +525,7 @@ export default function GlobeScene(props: Props) {
   return <div className="globe-stage">
     <Canvas camera={{ position: REST_CAMERA_POSITION, fov: 45 }} dpr={[1,1.5]} gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }} fallback={<p className="globe-message">Your browser does not support the interactive globe.</p>}>
       <ambientLight intensity={1.7} /><directionalLight position={[5,5,3]} intensity={1.8} />
-      <Earth selected={props.selected} tier={tier} countryIndex={countryIndex} reducedMotion={props.reducedMotion} onGeoData={onGeoData} onReady={props.onReady} onError={props.onError} onHover={props.onHover} onSelect={props.onSelect} onInteraction={props.onInteraction} />
+      <Earth selected={props.selected} tier={tier} countryIndex={countryIndex} reducedMotion={props.reducedMotion} command={props.command} onGeoData={onGeoData} onReady={props.onReady} onError={props.onError} onHover={props.onHover} onSelect={props.onSelect} onInteraction={props.onInteraction} />
       <TierTracker onTier={onTier} />
       <CameraProbe probeRef={probe} />
       <Controls spin={props.spin} reducedMotion={props.reducedMotion} command={props.command} onInteraction={props.onInteraction} />
