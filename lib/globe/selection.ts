@@ -15,6 +15,21 @@ export function regionAtUv(lookup: RegionLookup, u: number, v: number): MapRegio
   return id ? lookup.regions[id - 1] ?? null : null;
 }
 
+/**
+ * Region under a geographic latitude/longitude (e.g. the camera-facing point).
+ * Converts straight to sphere UVs (v runs south-to-north, matching three.js
+ * SphereGeometry). Never route this through canvas pixel space: canvas y runs
+ * north-to-south, so passing pixel.y / height as v mirrors latitude and can
+ * resolve the wrong continent (or ocean) for the camera's true position.
+ *
+ * Longitude is expected in [-180, 180] and latitude in [-90, 90] (the ranges
+ * a camera-derived position produces). Values outside those ranges clamp to
+ * edge texels; they do not wrap around the antimeridian.
+ */
+export function regionAtLatLon(lookup: RegionLookup, latitude: number, longitude: number): MapRegion | null {
+  return regionAtUv(lookup, (longitude + 180) / 360, (latitude + 90) / 180);
+}
+
 /** Resolve antialiased border coverage without interpreting blended RGB values as IDs. */
 export function assignRegionCoverage(ids: Uint16Array, coverage: Uint8Array, rgba: Uint8ClampedArray, id: number) {
   for (let pixel = 0; pixel < ids.length; pixel++) {

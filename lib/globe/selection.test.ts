@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { regionOutlinePixels, assignRegionCoverage, createTapGuard, regionAtUv, type RegionLookup } from './selection.js';
+import { regionOutlinePixels, assignRegionCoverage, createTapGuard, regionAtUv, regionAtLatLon, type RegionLookup } from './selection.js';
 
 const lookup: RegionLookup = {
   width: 2, height: 2, ids: new Uint16Array([1, 2, 0, 1]),
@@ -21,6 +21,31 @@ test('seam edges and poles clamp to edge texels, not out-of-bounds indices', () 
   assert.equal(regionAtUv(lookup, 1, 0)?.iso3, 'WST');
   assert.equal(regionAtUv(lookup, -0.01, 1)?.iso3, 'WST');
   assert.equal(regionAtUv(lookup, NaN, 0), null);
+});
+
+// Northern land on canvas rows 0-1, ocean on rows 2-3 (canvas y=0 is north).
+const hemispheres: RegionLookup = {
+  width: 4, height: 4,
+  ids: new Uint16Array([1,1,1,1, 1,1,1,1, 0,0,0,0, 0,0,0,0]),
+  regions: [{ name: 'Northland', iso3: 'NTH' }],
+};
+
+test('regionAtLatLon keeps latitude unmirrored: north stays north', () => {
+  assert.equal(regionAtLatLon(hemispheres, 80, 0)?.iso3, 'NTH');
+  assert.equal(regionAtLatLon(hemispheres, 45, -120)?.iso3, 'NTH');
+  assert.equal(regionAtLatLon(hemispheres, 10, 179)?.iso3, 'NTH');
+});
+
+test('regionAtLatLon resolves ocean where the mirrored northern point is land', () => {
+  // The old canvas-pixel routing mirrored latitude, so facing -80 returned NTH.
+  assert.equal(regionAtLatLon(hemispheres, -80, 0), null);
+  assert.equal(regionAtLatLon(hemispheres, -45, 60), null);
+});
+
+test('regionAtLatLon clamps longitude edges and rejects non-finite input', () => {
+  assert.equal(regionAtLatLon(hemispheres, 80, -180)?.iso3, 'NTH');
+  assert.equal(regionAtLatLon(hemispheres, 80, 180)?.iso3, 'NTH');
+  assert.equal(regionAtLatLon(hemispheres, NaN, 0), null);
 });
 
 test('border coverage selects the dominant region; ties follow drawing order', () => {

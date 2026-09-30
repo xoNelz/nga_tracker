@@ -4,7 +4,7 @@ import { assignRegionCoverage, regionOutlinePixels, type RegionLookup } from './
 type Geometry = { type: 'Polygon'; coordinates: Ring[] } | { type: 'MultiPolygon'; coordinates: Ring[][] };
 export type WorldData = { features: { properties: { name: string; iso3: string }; geometry: Geometry }[] };
 
-export function makeWorldTexture(data: WorldData) {
+export function makeWorldTexture(data: WorldData, overlay?: WorldData) {
   const canvas = document.createElement('canvas');
   canvas.width = WORLD_TEXTURE_WIDTH; canvas.height = WORLD_TEXTURE_HEIGHT;
   const ctx = canvas.getContext('2d');
@@ -15,13 +15,21 @@ export function makeWorldTexture(data: WorldData) {
   mask.width = canvas.width; mask.height = canvas.height;
   const maskContext = mask.getContext('2d', { willReadFrequently: true });
   if (!maskContext) throw new Error('Could not create the region lookup.');
+  // Composite coverage: the coarse world stays as the base, and the regional
+  // detail file REPLACES its own countries (matched by iso3) instead of being
+  // drawn on top of them, so no country is ever drawn twice and the selection
+  // lookup resolves each iso3 to exactly one feature — the detailed one.
+  const overlayIso3 = new Set(overlay?.features.map(feature => feature.properties.iso3) ?? []);
+  const features = overlay
+    ? [...data.features.filter(feature => !overlayIso3.has(feature.properties.iso3)), ...overlay.features]
+    : data.features;
   const lookup: RegionLookup = {
     width: canvas.width, height: canvas.height,
     ids: new Uint16Array(canvas.width * canvas.height),
-    regions: data.features.map(feature => feature.properties),
+    regions: features.map(feature => feature.properties),
   };
   const coverage = new Uint8Array(lookup.ids.length);
-  for (const [featureIndex, feature] of data.features.entries()) {
+  for (const [featureIndex, feature] of features.entries()) {
     maskContext.clearRect(0, 0, mask.width, mask.height);
     const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
     for (const polygon of polygons) {
@@ -78,4 +86,20 @@ export function makeWorldTexture(data: WorldData) {
     texture.needsUpdate = true;
   };
   return { texture, lookup, setSelection };
+}
+
+/** One cached geography view: its feature data plus the built texture/lookup. */
+export type GeoEntry = { data: WorldData; created: ReturnType<typeof makeWorldTexture> };
+
+export type SettledGeo = { status: 'ready'; entry: GeoEntry } | { status: 'load-error' };
+
+/**
+ * Decide what the geography loader shows once the world base and optional
+ * regional detail have settled. The world base is never discarded because
+ * regional detail failed; when no usable map exists at all the loader must
+ * surface the load error instead of stalling silently.
+ */
+export function settleGeoLoad(worldEntry: GeoEntry | null, regionEntry: GeoEntry | null): SettledGeo {
+  const entry = regionEntry ?? worldEntry;
+  return entry ? { status: 'ready', entry } : { status: 'load-error' };
 }

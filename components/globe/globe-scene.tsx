@@ -3,9 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, t
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Raycaster, Vector2, type Camera, type Mesh, type Vector3 } from 'three';
-import { makeWorldTexture, type WorldData } from '@/lib/globe/texture';
-import { createTapGuard, regionAtUv, type MapRegion, type RegionLookup } from '@/lib/globe/selection';
-import { WORLD_TEXTURE_WIDTH, WORLD_TEXTURE_HEIGHT, lonLatToTexturePixel } from '@/lib/globe/geography';
+import { makeWorldTexture, settleGeoLoad, type GeoEntry, type WorldData } from '@/lib/globe/texture';
+import { createTapGuard, regionAtLatLon, regionAtUv, type MapRegion, type RegionLookup } from '@/lib/globe/selection';
 import {
   tierForDistance,
   regionFileForTier,
@@ -71,24 +70,27 @@ function CameraProbe({ probeRef }: { probeRef: RefObject<CameraShot | null> }) {
 /**
  * Which continent's region file the globe shows below the world tier.
  * Adjusted during render (guarded by the previous inputs) so the value never
- * feeds back into its own computation. Prefers the selected map region, then
- * the continent under the camera, then a default so detail always loads.
+ * feeds back into its own computation. The camera leads: detail follows where
+ * the user is looking, independent of football navigation state, so the
+ * selected destination is preserved while browsing other regions. The selected
+ * region's continent is only a fallback (first paint, facing ocean), then a
+ * default so detail always loads.
  */
 function useContinentId(
   tier: ZoomTier,
   countryIndex: CountryIndex,
   selected: MapRegion | null,
-  facingContinent: () => string | null,
+  faced: string | null,
 ): string | null {
   const [prevKey, setPrevKey] = useState<string | null>(null);
   const [continentId, setContinentId] = useState<string | null>(null);
-  const key = `${tier}|${selected?.iso3 ?? ''}|${Object.keys(countryIndex).length}`;
+  const key = `${tier}|${selected?.iso3 ?? ''}|${Object.keys(countryIndex).length}|${faced ?? ''}`;
   if (prevKey !== key) {
     setPrevKey(key);
     setContinentId(
       tier === 'world'
         ? null
-        : (continentForIso3(countryIndex, selected?.iso3 ?? null) ?? facingContinent() ?? 'africa'),
+        : (faced ?? continentForIso3(countryIndex, selected?.iso3 ?? null) ?? 'africa'),
     );
   }
   return continentId;
@@ -99,6 +101,10 @@ type EarthProps = Pick<Props, 'selected' | 'onReady' | 'onError' | 'onHover' | '
   countryIndex: CountryIndex;
   onGeoData: (data: RegionData, continentId: string | null) => void;
 };
+
+/** Facing-continent poll cadence and the stability window before a region switches. */
+const FACE_POLL_MS = 200;
+const FACE_STABLE_MS = 500;
 
 function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady, onError, onHover, onSelect, onInteraction }: EarthProps) {
   const [world, setWorld] = useState<ReturnType<typeof makeWorldTexture> | null>(null);
@@ -117,19 +123,36 @@ function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady
     const point = camera.position.clone().normalize().multiplyScalar(GLOBE_RADIUS);
     const latitude = (Math.asin(Math.max(-1, Math.min(1, point.y / GLOBE_RADIUS))) * 180) / Math.PI;
     const longitude = (Math.atan2(-point.z, point.x) * 180) / Math.PI;
-    const pixel = lonLatToTexturePixel(longitude, latitude);
-    const region = regionAtUv(lookup, pixel.x / WORLD_TEXTURE_WIDTH, pixel.y / WORLD_TEXTURE_HEIGHT);
+    // regionAtLatLon converts straight to sphere UVs; the old canvas-pixel
+    // routing mirrored latitude and could resolve the wrong continent.
+    const region = regionAtLatLon(lookup, latitude, longitude);
     return continentForIso3(countryIndex, region?.iso3 ?? null);
   }, [camera, countryIndex]);
 
-  const continentId = useContinentId(tier, countryIndex, selected, facingContinent);
+  // Region detail follows the camera as the user rotates: the facing continent
+  // is polled (throttled) and only adopted once it has been stable for a beat,
+  // so sweeping across boundaries never thrashes the region file. Ocean-facing
+  // pauses keep the current region instead of falling back to a default.
+  const [faced, setFaced] = useState<string | null>(null);
+  const facedRef = useRef(faced);
+  const facingRef = useRef(facingContinent);
+  useEffect(() => {
+    facingRef.current = facingContinent;
+  });
+  const facePoll = useRef({ check: 0, candidate: null as string | null, since: 0 });
+
+  const continentId = useContinentId(tier, countryIndex, selected, faced);
 
   const geoUrl = regionFileForTier(tier, continentId);
 
   // Tier-aware geography: the world file first, then region-scoped 50m files
-  // as the user dives in. The previous texture stays up while the next loads.
+  // as the user dives in. Regional detail is composited OVER the coarse world
+  // (replacing its own countries) instead of replacing the whole texture, so
+  // the rest of the planet stays visible and selectable at every tier. The
+  // previous texture stays up while the next loads.
   useEffect(() => {
     let cancelled = false;
+    const worldUrl = '/data/world.geojson';
     const apply = (data: RegionData, created: ReturnType<typeof makeWorldTexture>) => {
       lookupRef.current = created.lookup;
       setWorld(created);
@@ -144,27 +167,49 @@ function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady
       apply(cached.data, cached.created);
       return;
     }
-    fetch(geoUrl)
-      .then(response => {
+    const loadJson = (url: string) =>
+      fetch(url).then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json() as Promise<RegionData>;
-      })
-      .then(data => {
-        if (cancelled) return;
-        const created = makeWorldTexture(data);
-        cache.current.set(geoUrl, { data, created });
-        apply(data, created);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        // Region detail is progressive enhancement: fall back to the world view.
-        const fallback = cache.current.get('/data/world.geojson');
-        if (geoUrl !== '/data/world.geojson' && fallback) {
-          apply(fallback.data, fallback.created);
-        } else if (geoUrl === '/data/world.geojson') {
-          onError('The map could not load. Please reload.');
-        }
       });
+    // The world base settles independently of optional regional detail: a
+    // successful base is kept even when detail fails, and a failed base with
+    // no usable map surfaces the load error instead of stalling silently.
+    const settleWorld = async (): Promise<GeoEntry | null> => {
+      const existing = cache.current.get(worldUrl);
+      if (existing) return existing;
+      try {
+        const data = await loadJson(worldUrl);
+        if (cancelled) return null;
+        const entry: GeoEntry = { data, created: makeWorldTexture(data) };
+        cache.current.set(worldUrl, entry);
+        return entry;
+      } catch {
+        return null;
+      }
+    };
+    (async () => {
+      const worldEntry = await settleWorld();
+      if (cancelled) return;
+      let regionEntry: GeoEntry | null = null;
+      if (geoUrl !== worldUrl && worldEntry) {
+        try {
+          const regionData = await loadJson(geoUrl);
+          if (cancelled) return;
+          regionEntry = { data: regionData, created: makeWorldTexture(worldEntry.data, regionData) };
+          cache.current.set(geoUrl, regionEntry);
+        } catch {
+          if (cancelled) return;
+          // Regional detail is progressive enhancement: the world base stays up.
+        }
+      }
+      const settled = settleGeoLoad(worldEntry, regionEntry);
+      if (settled.status === 'load-error') {
+        onError('The map could not load. Please reload.');
+      } else {
+        apply(settled.entry.data, settled.entry.created);
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -175,13 +220,29 @@ function Earth({ selected, tier, countryIndex, reducedMotion, onGeoData, onReady
   }, []);
 
   // Hover follows the current camera; OrbitControls updates at priority -1.
-  // The same frame also eases any in-flight double-click zoom.
+  // The same frame also eases any in-flight double-click zoom and polls the
+  // facing continent (throttled) so region detail follows rotation.
   useFrame(() => {
     refreshHover.current();
     const target = zoomTarget.current;
     if (target) {
       camera.position.lerp(target, 0.14);
       if (camera.position.distanceTo(target) < 0.03) zoomTarget.current = null;
+    }
+    const now = performance.now();
+    const poll = facePoll.current;
+    if (now - poll.check >= FACE_POLL_MS) {
+      poll.check = now;
+      const current = facingRef.current();
+      if (current === poll.candidate) {
+        if (current !== null && current !== facedRef.current && now - poll.since >= FACE_STABLE_MS) {
+          facedRef.current = current;
+          setFaced(current);
+        }
+      } else {
+        poll.candidate = current;
+        poll.since = now;
+      }
     }
   });
 
