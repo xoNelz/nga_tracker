@@ -34,8 +34,8 @@ export interface ProjectedLabel {
   visible: boolean;
 }
 
-// Labels near or behind the limb stay hidden so they never flicker at the edge.
-const FACING_CUTOFF = 0.12;
+// Keep labels slightly inside the geometric horizon to avoid edge flicker.
+const HORIZON_INSET = 0.04;
 
 /**
  * Project a label anchor to screen pixels. The globe mesh sits at the origin
@@ -51,14 +51,17 @@ export function projectLabel(
   radius = GLOBE_RADIUS,
 ): ProjectedLabel {
   const point = latLonToGlobePoint(latitude, longitude, radius);
+  // Measure from the surface point to the real camera. Using only the
+  // camera's direction from the globe centre treats the camera as infinitely
+  // distant and can expose labels that are actually hidden by the globe.
   const facing = point
     .clone()
     .normalize()
-    .dot(camera.position.clone().normalize());
+    .dot(camera.position.clone().sub(point).normalize());
   const ndc = point.project(camera);
   return {
     x: (ndc.x * 0.5 + 0.5) * width,
     y: (-ndc.y * 0.5 + 0.5) * height,
-    visible: facing > FACING_CUTOFF && ndc.z < 1,
+    visible: facing > HORIZON_INSET && ndc.z < 1,
   };
 }

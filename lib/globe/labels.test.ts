@@ -38,9 +38,17 @@ test('a label on the far side of the globe is hidden', () => {
   assert.equal(label.visible, false);
 });
 
-test('a label near the limb is hidden to avoid edge flicker', () => {
+test('the globe hides a label that its curve blocks from a finite camera', () => {
   const camera = cameraAt(5, 0, 0);
-  // ~84 degrees around from the camera axis: facing cosine ~0.1 < cutoff.
-  const label = projectLabel(0, 84, camera, 800, 600);
+  // The old centre-to-camera approximation showed this point even though the
+  // globe's curved surface blocks the direct line from the label to the camera.
+  const label = projectLabel(0, 75, camera, 800, 600);
   assert.equal(label.visible, false);
+});
+
+test('label visibility responds to the camera distance', () => {
+  const distant = projectLabel(0, 65, cameraAt(5, 0, 0), 800, 600);
+  const close = projectLabel(0, 65, cameraAt(3, 0, 0), 800, 600);
+  assert.equal(distant.visible, true);
+  assert.equal(close.visible, false);
 });
