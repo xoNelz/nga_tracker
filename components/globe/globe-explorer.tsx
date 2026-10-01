@@ -5,8 +5,11 @@ import { Component, useCallback, useEffect, useState, type ReactNode } from 'rea
 import { Button } from '@/components/ui/button';
 import type { Command } from './globe-scene';
 import { destinations, destinationsForMapRegion, type Destination } from '@/lib/football/destinations';
+import { hierarchyCrumbs, type HierarchyLevel } from '@/lib/football/hierarchy';
 import type { MapRegion } from '@/lib/globe/selection';
 const Scene = dynamic(() => import('./globe-scene'), { ssr: false, loading: () => <p className="globe-message">Loading the world…</p> });
+type CountryIndex = Record<string, string>;
+type ContinentRecord = { continent_id: string; continent_name: string };
 
 class Boundary extends Component<{children: ReactNode}, {failed: boolean}> {
   state = {failed:false};
@@ -21,10 +24,34 @@ export default function GlobeExplorer() {
   const [hovered, setHovered] = useState<MapRegion | null>(null);
   const [selected, setSelected] = useState<MapRegion | null>(null);
   const [destination, setDestination] = useState<Destination | null>(null);
+  const [activeContinentId, setActiveContinentId] = useState<string | null>(null);
+  const [countryIndex, setCountryIndex] = useState<CountryIndex>({});
+  const [continentNames, setContinentNames] = useState<Record<string, string>>({});
   const selectMapRegion = useCallback((region: MapRegion | null) => {
     setSelected(region);
+    if (region) setActiveContinentId(countryIndex[region.iso3] ?? null);
     const choices = destinationsForMapRegion(region?.iso3 ?? null);
     setDestination(choices.length === 1 ? choices[0] : null);
+  }, [countryIndex]);
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      fetch('/data/country-index.json').then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<CountryIndex>;
+      }),
+      fetch('/data/continents.json').then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json() as Promise<ContinentRecord[]>;
+      }),
+    ]).then(([index, continents]) => {
+      if (cancelled) return;
+      setCountryIndex(index);
+      setContinentNames(Object.fromEntries(continents.map(item => [item.continent_id, item.continent_name])));
+    }).catch(() => {
+      // The globe remains usable; hierarchy context stays at World until data is available.
+    });
+    return () => { cancelled = true; };
   }, []);
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -43,14 +70,34 @@ export default function GlobeExplorer() {
   const pause = useCallback(() => setSpin(false), []);
   const issue = (kind: NonNullable<Command>['kind']) => {
     setSpin(false);
-    if (kind === 'reset') { setHovered(null); setSelected(null); setDestination(null); }
+    if (kind === 'reset') { setHovered(null); setSelected(null); setDestination(null); setActiveContinentId(null); }
     setCommand(previous => ({kind, id:(previous?.id??0)+1}));
   };
   const available = ready && !error;
+  const resolvedContinentId = selected ? countryIndex[selected.iso3] ?? activeContinentId : activeContinentId;
+  const crumbs = hierarchyCrumbs({ activeContinentId: resolvedContinentId, continentNames, destination, selected });
+  const currentContext = crumbs[crumbs.length - 1];
+  const returnTo = (level: HierarchyLevel) => {
+    setSpin(false);
+    if (level === 'world') {
+      issue('reset');
+      return;
+    }
+    setActiveContinentId(resolvedContinentId);
+    setSelected(null);
+    setDestination(null);
+  };
   return <main className="explorer">
     <header className="app-header"><Link className="brand" href="/" aria-label="Naija Player Tracker home"><span className="flag" aria-hidden="true" /><span>NAIJA<span className="brand-secondary">PLAYER TRACKER</span></span></Link><span className="edition">GLOBE PROTOTYPE / 01</span></header>
     <section className="world-stage" aria-label="Interactive world globe">
-      <div className="world-context"><span className="context-index">01 /</span><h1>WORLD</h1></div>
+      <nav className="hierarchy-breadcrumb" aria-label="Current exploration level">
+        <ol>{crumbs.map((crumb, index) => <li key={crumb.level}>
+          {index < crumbs.length - 1
+            ? <button type="button" onClick={() => returnTo(crumb.level)}>{crumb.label}</button>
+            : <span aria-current="page">{crumb.label}</span>}
+        </li>)}</ol>
+      </nav>
+      <div className="world-context"><span className="context-index">{String(crumbs.length).padStart(2, '0')} /</span><h1>{currentContext.label}</h1></div>
       <div className="globe-viewport" aria-label="Drag to rotate. Scroll or pinch to zoom. Click or tap land to select a map region."><Boundary><Scene selected={selected} reducedMotion={reduced} spin={spin && !reduced && !error} command={command} onReady={onReady} onError={onError} onInteraction={pause} onHover={setHovered} onSelect={selectMapRegion} /></Boundary>{error && <p className="globe-message" role="alert">{error}</p>}</div>
       <div className="region-readout" aria-label="Map region selection">
         <p>Hovering: <span>{hovered?.name ?? '—'}</span></p>
@@ -60,7 +107,9 @@ export default function GlobeExplorer() {
         <label htmlFor="football-destination">Football destination · Europe</label>
         <select id="football-destination" value={destination?.country_id ?? ''}
           aria-describedby="destination-help" onChange={event => {
-            setDestination(destinations.find(item => item.country_id === event.target.value) ?? null);
+            const next = destinations.find(item => item.country_id === event.target.value) ?? null;
+            setDestination(next);
+            if (next) setActiveContinentId(next.continent_id);
             setSpin(false);
           }}>
           <option value="">Choose a destination</option>
