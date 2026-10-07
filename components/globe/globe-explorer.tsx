@@ -4,12 +4,12 @@ import Link from 'next/link';
 import { Component, useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import type { Command } from './globe-scene';
-import { destinations, destinationsForMapRegion, type Destination } from '@/lib/football/destinations';
+import { destinationsForMapRegion, type Destination } from '@/lib/football/destinations';
 import { hierarchyCrumbs, type HierarchyLevel } from '@/lib/football/hierarchy';
+import { hierarchyNavigationItems, mapRegionForDestination, type ContinentOption, type HierarchyNavigationItem } from '@/lib/football/navigation';
 import type { MapRegion } from '@/lib/globe/selection';
 const Scene = dynamic(() => import('./globe-scene'), { ssr: false, loading: () => <p className="globe-message">Loading the world…</p> });
 type CountryIndex = Record<string, string>;
-type ContinentRecord = { continent_id: string; continent_name: string };
 
 class Boundary extends Component<{children: ReactNode}, {failed: boolean}> {
   state = {failed:false};
@@ -26,7 +26,9 @@ export default function GlobeExplorer() {
   const [destination, setDestination] = useState<Destination | null>(null);
   const [activeContinentId, setActiveContinentId] = useState<string | null>(null);
   const [countryIndex, setCountryIndex] = useState<CountryIndex>({});
+  const [continents, setContinents] = useState<ContinentOption[]>([]);
   const [continentNames, setContinentNames] = useState<Record<string, string>>({});
+  const [navigationLoaded, setNavigationLoaded] = useState(false);
   const selectMapRegion = useCallback((region: MapRegion | null) => {
     setSelected(region);
     if (region) setActiveContinentId(countryIndex[region.iso3] ?? null);
@@ -42,14 +44,17 @@ export default function GlobeExplorer() {
       }),
       fetch('/data/continents.json').then(response => {
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return response.json() as Promise<ContinentRecord[]>;
+        return response.json() as Promise<ContinentOption[]>;
       }),
     ]).then(([index, continents]) => {
       if (cancelled) return;
       setCountryIndex(index);
+      setContinents(continents);
       setContinentNames(Object.fromEntries(continents.map(item => [item.continent_id, item.continent_name])));
     }).catch(() => {
       // The globe remains usable; hierarchy context stays at World until data is available.
+    }).finally(() => {
+      if (!cancelled) setNavigationLoaded(true);
     });
     return () => { cancelled = true; };
   }, []);
@@ -77,6 +82,7 @@ export default function GlobeExplorer() {
   const resolvedContinentId = selected ? countryIndex[selected.iso3] ?? activeContinentId : activeContinentId;
   const crumbs = hierarchyCrumbs({ activeContinentId: resolvedContinentId, continentNames, destination, selected });
   const currentContext = crumbs[crumbs.length - 1];
+  const navigationItems = hierarchyNavigationItems(resolvedContinentId, continents);
   const returnTo = (level: HierarchyLevel) => {
     setSpin(false);
     if (level === 'world') {
@@ -86,6 +92,25 @@ export default function GlobeExplorer() {
     setActiveContinentId(resolvedContinentId);
     setSelected(null);
     setDestination(null);
+  };
+  const navigateTo = (item: HierarchyNavigationItem) => {
+    setSpin(false);
+    setHovered(null);
+    if (item.kind === 'continent') {
+      setActiveContinentId(item.id);
+      setSelected(null);
+      setDestination(null);
+      return;
+    }
+    if (item.kind === 'home') {
+      setActiveContinentId('africa');
+      setSelected({ iso3: 'NGA', name: 'Nigeria' });
+      setDestination(null);
+      return;
+    }
+    setActiveContinentId(item.destination.continent_id);
+    setSelected(mapRegionForDestination(item.destination));
+    setDestination(item.destination);
   };
   return <main className="explorer">
     <header className="app-header"><Link className="brand" href="/" aria-label="Naija Player Tracker home"><span className="flag" aria-hidden="true" /><span>NAIJA<span className="brand-secondary">PLAYER TRACKER</span></span></Link><span className="edition">GLOBE PROTOTYPE / 01</span></header>
@@ -103,24 +128,16 @@ export default function GlobeExplorer() {
         <p>Hovering: <span>{hovered?.name ?? '—'}</span></p>
         <p role="status" aria-live="polite" aria-atomic="true">Selected: <span>{selected?.name ?? 'None'}</span></p>
       </div>
-      <div className="destination-chooser">
-        <label htmlFor="football-destination">Football destination · Europe</label>
-        <select id="football-destination" value={destination?.country_id ?? ''}
-          aria-describedby="destination-help" onChange={event => {
-            const next = destinations.find(item => item.country_id === event.target.value) ?? null;
-            setDestination(next);
-            if (next) setActiveContinentId(next.continent_id);
-            setSpin(false);
-          }}>
-          <option value="">Choose a destination</option>
-          {destinations.map(item => <option key={item.country_id} value={item.country_id}>{item.country_name}</option>)}
-        </select>
-        <p id="destination-help">{selected?.iso3 === 'GBR'
-          ? 'UK map selected: choose England, Scotland, Wales or Northern Ireland. Ireland is separate.'
-          : 'Choose a football destination independently of the map region.'}</p>
-        <p role="status" aria-live="polite" aria-atomic="true">Football destination: <strong>{destination?.country_name ?? 'None'}</strong></p>
-        <p>The globe outline shows the selected map region, not the football destination.</p>
-      </div>
+      <nav className="hierarchy-navigator" aria-label="Explore by hierarchy">
+        <p className="hierarchy-navigator__label">{resolvedContinentId ? 'CHOOSE A FOOTBALL DESTINATION' : 'CHOOSE A CONTINENT'}</p>
+        {navigationItems.length > 0 ? <ul>{navigationItems.map(item => {
+          const current = item.kind === 'destination'
+            ? destination?.country_id === item.id
+            : item.kind === 'home' && selected?.iso3 === 'NGA';
+          return <li key={`${item.kind}-${item.id}`}><button type="button" aria-current={current ? 'page' : undefined} onClick={() => navigateTo(item)}>{item.label}</button></li>;
+        })}</ul> : <p className="hierarchy-navigator__empty">{navigationLoaded ? 'No sample football destinations are available here yet.' : 'Loading navigation…'}</p>}
+        <p className="hierarchy-navigator__status" role="status" aria-live="polite" aria-atomic="true">Current destination: <strong>{selected?.iso3 === 'NGA' ? 'Nigeria · Home' : destination?.country_name ?? 'None'}</strong></p>
+      </nav>
       <div className="stage-note"><span className="note-rule" />NIGERIAN FOOTBALLERS ABROAD</div>
       <div className="world-controls" aria-label="Globe controls">
         <div className="control-group"><Button variant="outline" className="pixel-button" disabled={!available||reduced} aria-pressed={spin&&!reduced} onClick={()=>setSpin(value=>!value)}>{spin&&!reduced?'Ⅱ PAUSE SPIN':'▷ RESUME SPIN'}</Button><Button variant="outline" className="pixel-button" disabled={!available} onClick={()=>issue('reset')}>RESET VIEW</Button></div>
