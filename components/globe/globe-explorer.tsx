@@ -7,6 +7,7 @@ import type { Command } from './globe-scene';
 import { destinationsForMapRegion, type Destination } from '@/lib/football/destinations';
 import { hierarchyCrumbs, type HierarchyLevel } from '@/lib/football/hierarchy';
 import { hierarchyNavigationItems, mapRegionForDestination, type ContinentOption, type HierarchyNavigationItem } from '@/lib/football/navigation';
+import { continentCameraFocus, destinationCameraFocus, type CameraFocus } from '@/lib/globe/cameraFocus';
 import type { MapRegion } from '@/lib/globe/selection';
 const Scene = dynamic(() => import('./globe-scene'), { ssr: false, loading: () => <p className="globe-message">Loading the world…</p> });
 type CountryIndex = Record<string, string>;
@@ -73,10 +74,15 @@ export default function GlobeExplorer() {
   const onReady = useCallback(() => setReady(true), []);
   const onError = useCallback((message:string) => { setError(message); setSpin(false); }, []);
   const pause = useCallback(() => setSpin(false), []);
-  const issue = (kind: NonNullable<Command>['kind']) => {
+  const issue = (kind: Exclude<NonNullable<Command>['kind'], 'focus'>) => {
     setSpin(false);
     if (kind === 'reset') { setHovered(null); setSelected(null); setDestination(null); setActiveContinentId(null); }
-    setCommand(previous => ({kind, id:(previous?.id??0)+1}));
+    setCommand(previous => ({ kind, id: (previous?.id ?? 0) + 1 }));
+  };
+  const focus = (target: CameraFocus | null) => {
+    if (!target) return;
+    setSpin(false);
+    setCommand(previous => ({ kind: 'focus', focus: target, id: (previous?.id ?? 0) + 1 }));
   };
   const available = ready && !error;
   const resolvedContinentId = selected ? countryIndex[selected.iso3] ?? activeContinentId : activeContinentId;
@@ -92,6 +98,8 @@ export default function GlobeExplorer() {
     setActiveContinentId(resolvedContinentId);
     setSelected(null);
     setDestination(null);
+    const continent = continents.find(item => item.continent_id === resolvedContinentId);
+    if (continent) focus(continentCameraFocus(continent.label));
   };
   const navigateTo = (item: HierarchyNavigationItem) => {
     setSpin(false);
@@ -100,17 +108,20 @@ export default function GlobeExplorer() {
       setActiveContinentId(item.id);
       setSelected(null);
       setDestination(null);
+      focus(continentCameraFocus(item.center));
       return;
     }
     if (item.kind === 'home') {
       setActiveContinentId('africa');
       setSelected({ iso3: 'NGA', name: 'Nigeria' });
       setDestination(null);
+      focus(destinationCameraFocus('nigeria'));
       return;
     }
     setActiveContinentId(item.destination.continent_id);
     setSelected(mapRegionForDestination(item.destination));
     setDestination(item.destination);
+    focus(destinationCameraFocus(item.destination.country_id));
   };
   return <main className="explorer">
     <header className="app-header"><Link className="brand" href="/" aria-label="Naija Player Tracker home"><span className="flag" aria-hidden="true" /><span>NAIJA<span className="brand-secondary">PLAYER TRACKER</span></span></Link><span className="edition">GLOBE PROTOTYPE / 01</span></header>

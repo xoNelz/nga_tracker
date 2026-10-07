@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentRef, type RefObject } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { Raycaster, Vector2, type Camera, type Mesh, type Vector3 } from 'three';
+import { Raycaster, Vector2, Vector3, type Camera, type Mesh } from 'three';
 import { makeWorldTexture, settleGeoLoad, type GeoEntry, type WorldData } from '@/lib/globe/texture';
 import { createTapGuard, regionAtLatLon, regionAtUv, type MapRegion, type RegionLookup } from '@/lib/globe/selection';
 import {
@@ -18,9 +18,14 @@ import {
   type ZoomTier,
 } from '@/lib/globe/zoomTiers';
 import { projectLabel, GLOBE_RADIUS, type MapLabel } from '@/lib/globe/labels';
+import { cameraPositionForFocus, type CameraFocus } from '@/lib/globe/cameraFocus';
 import { destinationsForMapRegion } from '@/lib/football/destinations';
 
-export type Command = { kind: 'reset' | 'in' | 'out' | 'left' | 'right'; id: number } | null;
+export type CameraControlKind = 'reset' | 'in' | 'out' | 'left' | 'right';
+export type Command =
+  | { kind: CameraControlKind; id: number }
+  | { kind: 'focus'; id: number; focus: CameraFocus }
+  | null;
 type Props = { selected: MapRegion | null; spin: boolean; reducedMotion: boolean; command: Command; onInteraction: () => void; onReady: () => void; onError: (message: string) => void; onHover: (region: MapRegion | null) => void; onSelect: (region: MapRegion | null) => void };
 
 /**
@@ -116,10 +121,23 @@ function Earth({ selected, tier, countryIndex, reducedMotion, command, onGeoData
   const zoomTarget = useRef<Vector3 | null>(null);
   const refreshHover = useRef<() => void>(() => {});
 
-  // Any explicit camera command takes priority over an in-flight double-click dive.
+  // Navigation focus and double-click share one target so manual input and
+  // explicit controls always cancel the active movement consistently.
   useEffect(() => {
-    if (command) zoomTarget.current = null;
-  }, [command]);
+    if (!command) return;
+    if (command.kind !== 'focus') {
+      zoomTarget.current = null;
+      return;
+    }
+    const target = new Vector3(...cameraPositionForFocus(command.focus));
+    if (reducedMotion) {
+      camera.position.copy(target);
+      camera.lookAt(0, 0, 0);
+      zoomTarget.current = null;
+    } else {
+      zoomTarget.current = target;
+    }
+  }, [command, reducedMotion, camera]);
 
   // The continent under the camera, for when nothing is selected.
   const facingContinent = useCallback((): string | null => {
@@ -371,10 +389,13 @@ function Controls({ spin, reducedMotion, command, onInteraction }: Pick<Props, '
     } else if (command.kind === 'in' || command.kind === 'out') {
       camera.position.multiplyScalar(command.kind === 'in' ? 0.88 : 1.12);
       camera.position.setLength(Math.max(2.5, Math.min(6.5, camera.position.length())));
-    } else {
+    } else if (command.kind === 'left' || command.kind === 'right') {
       const a = command.kind === 'left' ? 0.2 : -0.2, x = camera.position.x, z = camera.position.z;
       camera.position.x = x * Math.cos(a) - z * Math.sin(a);
       camera.position.z = x * Math.sin(a) + z * Math.cos(a);
+    } else {
+      // Earth owns focus easing so direct pointer and wheel input can cancel it.
+      return;
     }
     orbit.update(); invalidate();
   }, [command, invalidate]);

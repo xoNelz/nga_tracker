@@ -1,9 +1,13 @@
 import { destinations, type Destination } from './destinations';
 
-export type ContinentOption = { continent_id: string; continent_name: string };
+export type ContinentOption = {
+  continent_id: string;
+  continent_name: string;
+  label: readonly [longitude: number, latitude: number];
+};
 
 export type HierarchyNavigationItem =
-  | { kind: 'continent'; id: string; label: string }
+  | { kind: 'continent'; id: string; label: string; center: readonly [longitude: number, latitude: number] }
   | { kind: 'destination'; id: string; label: string; destination: Destination }
   | { kind: 'home'; id: 'nigeria'; label: 'Nigeria · Home' };
 
@@ -17,6 +21,7 @@ export function hierarchyNavigationItems(
       kind: 'continent',
       id: continent.continent_id,
       label: continent.continent_name,
+      center: continent.label,
     }));
   }
 

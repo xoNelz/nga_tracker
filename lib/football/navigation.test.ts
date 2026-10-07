@@ -4,9 +4,9 @@ import { destinations } from './destinations.js';
 import { hierarchyNavigationItems, mapRegionForDestination } from './navigation.js';
 
 const continents = [
-  { continent_id: 'africa', continent_name: 'Africa' },
-  { continent_id: 'europe', continent_name: 'Europe' },
-  { continent_id: 'asia', continent_name: 'Asia' },
+  { continent_id: 'africa', continent_name: 'Africa', label: [15.72, 3.9] as const },
+  { continent_id: 'europe', continent_name: 'Europe', label: [14.09, 49.46] as const },
+  { continent_id: 'asia', continent_name: 'Asia', label: [77.58, 26.46] as const },
 ];
 
 test('World navigation exposes every continent', () => {
