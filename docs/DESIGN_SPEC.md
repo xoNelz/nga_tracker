@@ -119,7 +119,7 @@ Interactive pixel-art globe; world/continent/league-country navigation; drag rot
 
 ## 13. Out of scope for V1
 
-Accounts, authentication, favourites, social features, comments, live scores, news, transfer rumours, scouting models, fantasy football, AI recommendations, player comparisons, confederation filters, native apps, large admin systems and advanced analytics.
+Accounts, authentication, favourites, social features, comments, live scores, news, transfer rumours, scouting models, fantasy football, AI recommendations, player comparisons, confederation filters, native apps, large admin systems, advanced analytics, author data management, dataset uploads, browser-based record editing, persistent administrative storage and publishing workflows.
 
 Latest-match statistics, current-season statistics and a regularly refreshed transfer/status feed belong to the next version. Search-driven globe navigation is also deferred.
 
@@ -156,6 +156,129 @@ Product decision for the M3 continent view: zooming into a continent goes Google
 - The pixel texture stays deliberately chunky. Low-fi geography against sharp labels and markers is the retro-game contrast; do not smooth the texture into realism as zoom deepens.
 
 This amends section 3: the "do not switch to a flat country map" rule is now a confirmed product decision, not a provisional one.
+
+## 17. Amendment — author-managed data workspace (future version, 2026-10-30)
+
+The production dataset will eventually be controlled by an authorized human editor rather than being permanently embedded in application code. This capability belongs to a future version and does not expand V1. V1 continues to use a clearly labelled local historical sample dataset. A sample represents a fixed snapshot and must not be presented as a current roster; a later change in a player's club or loan status does not invalidate a correctly dated historical sample.
+
+This amendment defines future product and data-contract requirements. It does not change the current V1 schema, add an author interface or authorize authentication, storage or deployment work.
+
+### Author workflow
+
+A future author workspace should allow an authorized editor to:
+
+- Upload a supported JSON dataset or normalized CSV bundle.
+- Review the detected snapshot date, data-contract version and dataset status before importing.
+- Preview continents, league destinations, leagues, clubs and players.
+- Add, edit and remove draft records.
+- Correct player-to-club, club-to-league and league-to-country relationships.
+- Review publication blockers and non-blocking warnings without partially publishing invalid data.
+- Leave unknown player fields explicitly `null`.
+- Export a validated dataset for backup or review.
+- Publish an approved dataset as a deliberate, versioned action.
+- Restore previously published content through the versioned publication process.
+
+Uploaded or edited data remains a draft until the author explicitly publishes it. Public visitors cannot modify records. Draft edits, failed imports and incomplete records never replace the public dataset.
+
+### Canonical format and contract version
+
+JSON is the canonical interchange and publication format. Every dataset declares a `data_contract_version` separately from its content `dataset_version`, so future schema changes do not silently reinterpret older imports.
+
+CSV import means a per-entity set or bundle with separate files for continents, league destinations, leagues, clubs and players. The importer normalizes that bundle into the canonical JSON structure. A single flattened player CSV must not become the publication format because it duplicates relational data such as club coordinates.
+
+When the same stable ID appears more than once during import, all copies must agree on the entity's shared fields. Conflicting duplicates — for example, one `club_id` supplied with different coordinates — block import or publication and identify the conflicting records for the author.
+
+### Dataset status and eligibility policy
+
+Future schema versions support these dataset states:
+
+- `sample`: development or demonstration data that is not presented as a current roster.
+- `verified_snapshot`: sourced records checked on a declared historical date.
+- `published_current`: the author-approved dataset currently displayed by the public application.
+
+The exact eligibility rule for uncapped dual nationals remains a product decision. A dataset cannot move to `verified_snapshot` or `published_current` until its metadata records the approved eligibility-policy identifier or version. The author workspace must treat a missing eligibility policy as a publication blocker rather than silently imposing a capped-only or appearance-based rule.
+
+Sample datasets require a visible sample-status label and snapshot context. Per-player sources and verification dates are encouraged for real people in a sample but are mandatory publication requirements only for `verified_snapshot` and `published_current`. This preserves the ability to import the V1 sample without presenting it as verified current data.
+
+### Inclusion and loan validation
+
+Abroad-only inclusion follows the current playing club's actual location. For each player, resolve `player.club_id` to the current club and check that club's `location_country_code`. A current playing club located in Nigeria blocks inclusion, regardless of its league path or the location of a parent club.
+
+The `on_loan_from` field is display-only parent-club metadata for this check. A player loaned abroad from a Nigerian parent club is included because the current playing club is outside Nigeria. A player loaned into Nigeria from a foreign parent club is excluded because the current playing club is in Nigeria. The same current club supplies the globe coordinates; its league supplies the league-country navigation path.
+
+### Publication blockers
+
+The workspace must block publication for:
+
+- A missing or unsupported `data_contract_version`.
+- A missing approved eligibility policy on `verified_snapshot` or `published_current`.
+- Duplicate or missing stable identifiers.
+- Broken player, club, league, country or continent references.
+- Conflicting duplicate entity records.
+- A current playing club whose actual `location_country_code` is Nigeria.
+- Invalid or missing current-club coordinates.
+- Player coordinates duplicated outside the club record.
+- Club logos, badges, crests, sponsor artwork or related asset fields.
+- Unsupported gender, dataset-status or hierarchy values.
+- A `verified_snapshot` or `published_current` player record without a usable source and verification date.
+- Records presented as current when their status or snapshot metadata identifies them as historical or sample data.
+
+Unknown dates of birth, shirt numbers, positions, national-team levels and sprite attributes remain `null`. The editor must not invent missing information to satisfy validation.
+
+### Warnings and staleness
+
+Warnings require author review but do not automatically block publication. They include stale verification dates, optional unknown fields, sources that need renewed review and other conditions that reduce confidence without breaking the data contract. A stale record must remain visibly stale; editing an unrelated field must not reset its verification date or conceal the warning.
+
+The product owner must approve the stale-data thresholds and any warning that later becomes a blocker. The interface must not imply live or automatic roster accuracy unless a separately approved provider and refresh process actually supply it.
+
+### Versioning, publication and rollback
+
+Every published dataset includes:
+
+- A `data_contract_version`.
+- A content `dataset_version`.
+- Its dataset status.
+- A snapshot or verification date.
+- A visible status label.
+- The approved eligibility-policy identifier or version when required.
+- A source URL and last-verification date for every real player in `verified_snapshot` or `published_current`.
+- A publication timestamp.
+- A reference to the version from which it was created or restored.
+
+Published versions and their complete dataset contents are immutable and retained. They are never edited in place or deleted through the ordinary author workflow. A rollback republishes the complete contents of a prior version as a new version, with new publication metadata and an explicit reference to the restored source version. This preserves the audit history while returning the public application to known data.
+
+The public application consumes only the last successfully published dataset. A failed publication leaves the previously published version active.
+
+### Access, storage and security
+
+The initial author workflow should be designed around one trusted product owner or editor. Authentication, authorization, database storage, backups, immutable version retention, audit history and deployment architecture must be selected before persistent online editing is implemented.
+
+The storage provider, authentication provider and hosting model remain future architectural decisions. Do not add a paid service or external dependency without product-owner approval.
+
+Uploaded files are untrusted input. Validate file type, structure, size and field content before saving or rendering them. Do not execute uploaded content or accept embedded scripts.
+
+Publishing new data does not change the established product rules:
+
+- World → Continent → Country → Club → Player remains the hierarchy.
+- Country continues to mean the country housing the current club's league.
+- Actual current-club coordinates remain separate from league-country navigation.
+- Domestic Nigerian current playing locations remain excluded.
+- Men use eagle markers and women use falcon markers.
+- Club logos, badges, crests and sponsors remain prohibited.
+- Unknown player information remains unknown.
+- Latest matches, season statistics and automated transfer status remain separate future-version features.
+
+### Future implementation sequence
+
+1. Local JSON and normalized CSV-bundle upload with validation preview.
+2. Browser-based draft editing using the shared, versioned data contract.
+3. Validated export and import round-trip.
+4. Authentication and author permissions.
+5. Persistent draft and immutable published-version storage.
+6. Publication history, rollback and audit metadata.
+7. Optional approved importer or scheduled data-source integration.
+
+Each step requires its own product and technical approval. Do not implement the next step automatically.
 
 ## Appendix A — Coding-agent master prompt
 
